@@ -22,16 +22,23 @@ public class MyConnection {
     }
 
     public void open() {
+        while(true){
+            if (connectOneRound()) return;
+        }
+
+    }
+
+    private boolean connectOneRound() {
         for (String uri : uris) {
             try {
                 currentMyDriver = myDriverRepository.getMyDriver(uri);
                 currentMyDriver.connect();
-                return;
+                return true;
             } catch (MyDriverException e) {
                 currentMyDriver.close();
             }
         }
-
+        return false;
     }
 
     public void close() {
