@@ -196,4 +196,25 @@ public class MyConnectionSingleThreadTest {
         return new MyConnectionSingleThread(uris, myDriverRepository, myThreadUtil);
     }
 
+    @Test
+    public void should_call_my_driver_close_method_on_closing() throws MyDriverException, InterruptedException {
+         uris = new String[]{
+                "uri://connect:1"
+        };
+
+        MyDriverWrapper myDriver = mock(MyDriverWrapper.class);
+
+        when(myDriverRepository.getMyDriver(uris[0])).thenReturn(myDriver);
+
+        doNothing().when(myDriver).connect();
+
+        MyConnectionSingleThread myConnection = givenMyConnectionSingleThread();
+
+        //when
+        myConnection.open();
+        myConnection.close();
+
+        //then
+        verify(myDriver).close();
+    }
 }

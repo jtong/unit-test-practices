@@ -45,7 +45,10 @@ public class MyConnection {
     }
 
     public void close() {
-        throw new RuntimeException("Not implemented");
+        this.myConnectionSingleThread.close();
+        for (MyConnectionEventListener myConnectionEventListener : eventListener) {
+            myConnectionEventListener.disconnected(new EventObject(this));
+        }
     }
 
     public Closeable subscribe(int queryId, MySubscriber subscriber) {

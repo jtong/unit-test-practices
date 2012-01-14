@@ -54,5 +54,31 @@ public class MyConnectionTest {
         verify(myConnectionSingleThread).addListener(listener);
     }
 
+    @Test
+    public void should_call_my_connection_single_thread_close_method_on_closing() throws InterruptedException {
+        MyConnectionSingleThread myConnectionSingleThread = mock(MyConnectionSingleThread.class);
+        MyConnection myConnection = new MyConnection(myConnectionSingleThread);
+
+        myConnection.close();
+
+        Thread.sleep(1000);
+        verify(myConnectionSingleThread).close();
+    }
+
+    @Test
+    public void should_dispatch_disconnected_event_after_closed() throws InterruptedException {
+        MyConnectionSingleThread myConnectionSingleThread = mock(MyConnectionSingleThread.class);
+        MyConnectionEventListener listener = mock(MyConnectionEventListener.class);
+        MyConnection myConnection = new MyConnection(myConnectionSingleThread);
+        myConnection.addConnectionListener(listener);
+
+        myConnection.close();
+
+        Thread.sleep(1000);
+        ArgumentCaptor<EventObject> eventObjectArgumentCaptor = ArgumentCaptor.forClass(EventObject.class);
+        verify(listener).disconnected(eventObjectArgumentCaptor.capture());
+        assertThat(eventObjectArgumentCaptor.getValue().toString(), is(new EventObject(myConnection).toString()));
+    }
+
 
 }

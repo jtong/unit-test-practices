@@ -47,4 +47,8 @@ public class MyConnectionSingleThread {
     public void addListener(MyConnectionEventListener listener) {
         this.listeners.add(listener);
     }
+
+    public void close() {
+        this.currentMyDriver.close();
+    }
 }
