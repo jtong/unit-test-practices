@@ -1,44 +1,47 @@
 package myClient;
 
-import myDriver.MyDriver;
 import myDriver.MyDriverException;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.EventObject;
+import java.util.List;
 
 public class MyConnection {
 
     public final static int RECONNECT_INTERVAL = 3000;
-    private MyDriverWrapper currentMyDriver;
-    private String[] uris;
-    private MyDriverRepository myDriverRepository;
+    private MyConnectionSingleThread myConnectionSingleThread;
+    private List<MyConnectionEventListener> eventListener;
 
     public MyConnection(String[] uris) {
-        this(uris, new MyDriverRepository());
+        this(new MyConnectionSingleThread(uris, new MyDriverRepository(), new MyThreadUtil()));
     }
 
-    MyConnection(String[] uris, MyDriverRepository myDriverRepository) {
-        this.uris = uris;
-        this.myDriverRepository = myDriverRepository;
+    public MyConnection(MyConnectionSingleThread myConnectionSingleThread) {
+        this.myConnectionSingleThread = myConnectionSingleThread;
+        this.eventListener = new ArrayList<MyConnectionEventListener>();
     }
 
     public void open() {
-        while(true){
-            if (connectOneRound()) return;
-        }
+        new Thread(new Runnable() {
 
-    }
 
-    private boolean connectOneRound() {
-        for (String uri : uris) {
-            try {
-                currentMyDriver = myDriverRepository.getMyDriver(uri);
-                currentMyDriver.connect();
-                return true;
-            } catch (MyDriverException e) {
-                currentMyDriver.close();
+            @Override
+            public void run() {
+                try {
+                    myConnectionSingleThread.open();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+                dispatchConnectedEvent(eventListener);
             }
-        }
-        return false;
+
+            private void dispatchConnectedEvent(List<MyConnectionEventListener> eventListener) {
+                for (MyConnectionEventListener myConnectionEventListener : eventListener) {
+                    myConnectionEventListener.connected(new EventObject(MyConnection.this));
+                }
+            }
+        }).start();
     }
 
     public void close() {
@@ -50,7 +53,8 @@ public class MyConnection {
     }
 
     public synchronized void addConnectionListener(MyConnectionEventListener listener) {
-        throw new RuntimeException("Not implemented");
+        this.eventListener.add(listener);
+        this.myConnectionSingleThread.addListener(listener);
     }
 
     public synchronized void removeConnectionListener(MyConnectionEventListener listener) {
