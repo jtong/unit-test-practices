@@ -1,5 +1,6 @@
 package myClient;
 
+import com.sun.org.apache.xalan.internal.xsltc.compiler.Closure;
 import myDriver.MyDriverException;
 
 import java.io.Closeable;
@@ -52,8 +53,9 @@ public class MyConnection {
     }
 
     public Closeable subscribe(int queryId, MySubscriber subscriber) {
-        this.myConnectionSingleThread.register(queryId);
-        return this.myConnectionSingleThread.subscribe(queryId, subscriber);
+        Closeable closeable = this.myConnectionSingleThread.register(queryId, subscriber);
+        this.myConnectionSingleThread.receive();
+        return closeable;
     }
 
     public synchronized void addConnectionListener(MyConnectionEventListener listener) {

@@ -6,6 +6,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InOrder;
+import org.mockito.Matchers;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
@@ -225,9 +226,9 @@ public class MyConnectionSingleThreadTest {
         givenSimpleMyConnectionSingleThread();
 
         myConnectionSingleThread.open();
-        myConnectionSingleThread.register(queryId);
+        myConnectionSingleThread.register(queryId, mock(MySubscriber.class));
         try{
-            myConnectionSingleThread.register(queryId);
+            myConnectionSingleThread.register(queryId, mock(MySubscriber.class));
             fail("It should throw exception when given queryId is duplicate.But it didn't");
         } catch(RuntimeException e) {
 
@@ -241,7 +242,8 @@ public class MyConnectionSingleThreadTest {
         given(myDriver.receive()).willReturn(new MyData(queryId, "begin"));
 
         myConnectionSingleThread.open();
-        myConnectionSingleThread.subscribe(queryId, mySubscriber);
+        myConnectionSingleThread.register(queryId, mySubscriber);
+        myConnectionSingleThread.receive();
 
         verify(mySubscriber).onBegin();
 
@@ -257,7 +259,8 @@ public class MyConnectionSingleThreadTest {
         given(myDriver.receive()).willReturn(myData);
 
         myConnectionSingleThread.open();
-        myConnectionSingleThread.subscribe(queryId, mySubscriber);
+        myConnectionSingleThread.register(queryId, mySubscriber);
+        myConnectionSingleThread.receive();
 
         verify(mySubscriber).onMessage(myData.value);
     }

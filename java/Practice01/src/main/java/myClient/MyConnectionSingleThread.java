@@ -1,5 +1,6 @@
 package myClient;
 
+import com.sun.org.apache.xalan.internal.xsltc.compiler.Closure;
 import myDriver.MyData;
 import myDriver.MyDriverException;
 
@@ -14,14 +15,14 @@ public class MyConnectionSingleThread {
     private MyThreadUtil myThreadUtil;
     private MyDriverWrapper currentMyDriver;
     private List<MyConnectionEventListener> listeners;
-    private Set<Integer> queryIds;
+    private Map<Integer, MySubscriber> subscriberMap;
 
     public MyConnectionSingleThread(String[] uris, MyDriverRepository myDriverRepository, MyThreadUtil myThreadUtil) {
         this.uris = uris;
         this.myDriverRepository = myDriverRepository;
         this.myThreadUtil = myThreadUtil;
         this.listeners = new ArrayList<MyConnectionEventListener>();
-        this.queryIds = new LinkedHashSet<Integer>();
+        this.subscriberMap = new LinkedHashMap<Integer, MySubscriber>();
     }
 
     public void open() throws InterruptedException {
@@ -54,35 +55,36 @@ public class MyConnectionSingleThread {
         this.currentMyDriver.close();
     }
 
-    public Closeable subscribe(int queryId, MySubscriber mySubscriber) {
+
+    public Closeable register(int queryId, MySubscriber mySubscriber) {
+        checkIdExists(queryId);
+        this.subscriberMap.put(queryId, mySubscriber);
         try {
-            MyData myData = this.currentMyDriver.receive();
-            if (queryId == myData.queryId) {
-                if ("begin".equals(myData.value)) {
-                    mySubscriber.onBegin();
-                } else {
-                    mySubscriber.onMessage(myData.value);
-                }
-            }
+            this.currentMyDriver.addQuery(queryId);
         } catch (MyDriverException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         }
         return null;
     }
 
-    public void register(int queryId) {
-        checkIdExists(queryId);
-        this.queryIds.add(queryId);
-        try {
-            this.currentMyDriver.addQuery(queryId);
-        } catch (MyDriverException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+    private void checkIdExists(int queryId) {
+        if (subscriberMap.keySet().contains(queryId)) {
+            throw new RuntimeException(String.format("Query Id %s already exists", queryId));
         }
     }
 
-    private void checkIdExists(int queryId) {
-        if (queryIds.contains(queryId)) {
-            throw new RuntimeException(String.format("Query Id %s already exists", queryId));
+    public void receive() {
+         try {
+            MyData myData = this.currentMyDriver.receive();
+            if (this.subscriberMap.containsKey(myData.queryId)) {
+                if ("begin".equals(myData.value)) {
+                    this.subscriberMap.get(myData.queryId).onBegin();
+                } else {
+                    this.subscriberMap.get(myData.queryId).onMessage(myData.value);
+                }
+            }
+        } catch (MyDriverException e) {
+            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         }
     }
 }

@@ -76,6 +76,7 @@ public class MyConnectionTest {
         verify(listener).disconnected(eventObjectArgumentCaptor.capture());
         assertThat(eventObjectArgumentCaptor.getValue().toString(), is(new EventObject(myConnection).toString()));
     }
+
     @Test
     public void should_call_single_thread_class_register_method_on_subscribing(){
         MyConnectionSingleThread myConnectionSingleThread = mock(MyConnectionSingleThread.class);
@@ -86,7 +87,7 @@ public class MyConnectionTest {
 
         myConnection.subscribe(queryId, mySubscriber);
 
-        verify(myConnectionSingleThread).register(queryId);
+        verify(myConnectionSingleThread).register(queryId, mySubscriber);
     }
 
     @Test
@@ -99,7 +100,7 @@ public class MyConnectionTest {
 
         myConnection.subscribe(queryId, mySubscriber);
 
-        verify(myConnectionSingleThread).subscribe(queryId, mySubscriber);
+        verify(myConnectionSingleThread).receive();
     }
 
 
