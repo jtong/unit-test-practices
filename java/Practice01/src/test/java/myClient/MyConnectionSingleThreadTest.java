@@ -1,5 +1,6 @@
 package myClient;
 
+import myDriver.MyData;
 import myDriver.MyDriverException;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,6 +12,8 @@ import org.mockito.runners.MockitoJUnitRunner;
 
 import java.util.EventObject;
 
+import static org.junit.Assert.fail;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
 
 
@@ -20,12 +23,17 @@ public class MyConnectionSingleThreadTest {
     private MyDriverRepository myDriverRepository;
     @Mock
     private MyThreadUtil myThreadUtil;
+    @Mock
+    private MyDriverWrapper myDriver;
 
     private String[] uris;
+    private int queryId = 0;
+    private MyConnectionSingleThread myConnectionSingleThread;
 
     @Before
     public void before() {
         MockitoAnnotations.initMocks(MyConnection.class);
+
     }
 
 
@@ -198,13 +206,7 @@ public class MyConnectionSingleThreadTest {
 
     @Test
     public void should_call_my_driver_close_method_on_closing() throws MyDriverException, InterruptedException {
-         uris = new String[]{
-                "uri://connect:1"
-        };
-
-        MyDriverWrapper myDriver = mock(MyDriverWrapper.class);
-
-        when(myDriverRepository.getMyDriver(uris[0])).thenReturn(myDriver);
+        givenSimpleMyConnectionSingleThread();
 
         doNothing().when(myDriver).connect();
 
@@ -217,4 +219,56 @@ public class MyConnectionSingleThreadTest {
         //then
         verify(myDriver).close();
     }
+
+    @Test
+    public void should_throw_exception_on_register_when_given_queryId_is_same() throws InterruptedException {
+        givenSimpleMyConnectionSingleThread();
+
+        myConnectionSingleThread.open();
+        myConnectionSingleThread.register(queryId);
+        try{
+            myConnectionSingleThread.register(queryId);
+            fail("It should throw exception when given queryId is duplicate.But it didn't");
+        } catch(RuntimeException e) {
+
+        }
+    }
+
+    @Test
+    public void should_call_subscriber_on_begin_method_when_given_data_is_query_id_value_begin() throws MyDriverException, InterruptedException {
+        givenSimpleMyConnectionSingleThread();
+        MySubscriber mySubscriber = mock(MySubscriber.class);
+        given(myDriver.receive()).willReturn(new MyData(queryId, "begin"));
+
+        myConnectionSingleThread.open();
+        myConnectionSingleThread.subscribe(queryId, mySubscriber);
+
+        verify(mySubscriber).onBegin();
+
+    }
+
+
+    @Test
+    public void should_call_subscriber_on_message_method_when_given_data_is_not_query_id_value_begin() throws MyDriverException, InterruptedException {
+        givenSimpleMyConnectionSingleThread();
+
+        MySubscriber mySubscriber = mock(MySubscriber.class);
+        MyData myData = new MyData(queryId, "123456");
+        given(myDriver.receive()).willReturn(myData);
+
+        myConnectionSingleThread.open();
+        myConnectionSingleThread.subscribe(queryId, mySubscriber);
+
+        verify(mySubscriber).onMessage(myData.value);
+    }
+
+    private void givenSimpleMyConnectionSingleThread(){
+        uris = new String[]{
+                "uri://connect:1"
+        };
+        given(myDriverRepository.getMyDriver(uris[0])).willReturn(myDriver);
+        myConnectionSingleThread = new MyConnectionSingleThread(uris, myDriverRepository, myThreadUtil);
+    }
+
+
 }

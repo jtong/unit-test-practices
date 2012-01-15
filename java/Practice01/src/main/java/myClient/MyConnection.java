@@ -52,7 +52,8 @@ public class MyConnection {
     }
 
     public Closeable subscribe(int queryId, MySubscriber subscriber) {
-        throw new RuntimeException("Not implemented");
+        this.myConnectionSingleThread.register(queryId);
+        return this.myConnectionSingleThread.subscribe(queryId, subscriber);
     }
 
     public synchronized void addConnectionListener(MyConnectionEventListener listener) {

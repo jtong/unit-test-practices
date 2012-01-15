@@ -14,6 +14,7 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.Matchers.argThat;
 import static org.mockito.Matchers.isNotNull;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 
 public class MyConnectionTest {
@@ -24,8 +25,7 @@ public class MyConnectionTest {
 
         myConnection.open();
 
-        Thread.sleep(500);
-        verify(myConnectionSingleThread).open();
+        verify(myConnectionSingleThread, timeout(500)).open();
     }
 
     @Test
@@ -37,9 +37,8 @@ public class MyConnectionTest {
 
         myConnection.open();
 
-        Thread.sleep(1000);
         ArgumentCaptor<EventObject> eventObjectArgumentCaptor = ArgumentCaptor.forClass(EventObject.class);
-        verify(listener).connected(eventObjectArgumentCaptor.capture());
+        verify(listener, timeout(1000)).connected(eventObjectArgumentCaptor.capture());
         assertThat(eventObjectArgumentCaptor.getValue().toString(), is(new EventObject(myConnection).toString()));
     }
 
@@ -61,7 +60,6 @@ public class MyConnectionTest {
 
         myConnection.close();
 
-        Thread.sleep(1000);
         verify(myConnectionSingleThread).close();
     }
 
@@ -74,10 +72,34 @@ public class MyConnectionTest {
 
         myConnection.close();
 
-        Thread.sleep(1000);
         ArgumentCaptor<EventObject> eventObjectArgumentCaptor = ArgumentCaptor.forClass(EventObject.class);
         verify(listener).disconnected(eventObjectArgumentCaptor.capture());
         assertThat(eventObjectArgumentCaptor.getValue().toString(), is(new EventObject(myConnection).toString()));
+    }
+    @Test
+    public void should_call_single_thread_class_register_method_on_subscribing(){
+        MyConnectionSingleThread myConnectionSingleThread = mock(MyConnectionSingleThread.class);
+        int queryId = 0;
+        MySubscriber mySubscriber = mock(MySubscriber.class);
+
+        MyConnection myConnection = new MyConnection(myConnectionSingleThread);
+
+        myConnection.subscribe(queryId, mySubscriber);
+
+        verify(myConnectionSingleThread).register(queryId);
+    }
+
+    @Test
+    public void should_call_single_thread_class_subscribe_method_on_subscribing(){
+        MyConnectionSingleThread myConnectionSingleThread = mock(MyConnectionSingleThread.class);
+        int queryId = 0;
+        MySubscriber mySubscriber = mock(MySubscriber.class);
+
+        MyConnection myConnection = new MyConnection(myConnectionSingleThread);
+
+        myConnection.subscribe(queryId, mySubscriber);
+
+        verify(myConnectionSingleThread).subscribe(queryId, mySubscriber);
     }
 
 
