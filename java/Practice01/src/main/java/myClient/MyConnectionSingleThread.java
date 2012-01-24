@@ -1,6 +1,5 @@
 package myClient;
 
-import com.sun.org.apache.xalan.internal.xsltc.compiler.Closure;
 import myDriver.MyData;
 import myDriver.MyDriverException;
 
@@ -14,22 +13,23 @@ public class MyConnectionSingleThread {
     private MyDriverRepository myDriverRepository;
     private MyThreadUtil myThreadUtil;
     private MyDriverWrapper currentMyDriver;
-    private List<MyConnectionEventListener> listeners;
+    private Set<MyConnectionEventListener> listeners;
     private Map<Integer, MySubscriber> subscriberMap;
+    private boolean start;
 
     public MyConnectionSingleThread(String[] uris, MyDriverRepository myDriverRepository, MyThreadUtil myThreadUtil) {
         this.uris = uris;
         this.myDriverRepository = myDriverRepository;
         this.myThreadUtil = myThreadUtil;
-        this.listeners = new ArrayList<MyConnectionEventListener>();
+        this.listeners = new LinkedHashSet<MyConnectionEventListener>();
         this.subscriberMap = new LinkedHashMap<Integer, MySubscriber>();
     }
 
     public void open() throws InterruptedException {
-        currentMyDriver = start(uris, myDriverRepository);
+        currentMyDriver = startOpenConnection(uris, myDriverRepository);
     }
 
-    private MyDriverWrapper start(String[] uris, MyDriverRepository myDriverRepository) throws InterruptedException {
+    private MyDriverWrapper startOpenConnection(String[] uris, MyDriverRepository myDriverRepository) throws InterruptedException {
         while (true) {
             for (String uri : uris) {
                 MyDriverWrapper currentMyDriver = myDriverRepository.getMyDriver(uri);
@@ -55,7 +55,6 @@ public class MyConnectionSingleThread {
         this.currentMyDriver.close();
     }
 
-
     public Closeable register(int queryId, MySubscriber mySubscriber) {
         checkIdExists(queryId);
         this.subscriberMap.put(queryId, mySubscriber);
@@ -64,7 +63,7 @@ public class MyConnectionSingleThread {
         } catch (MyDriverException e) {
             e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
         }
-        return null;
+        return new SubscribeCloser(queryId, this);
     }
 
     private void checkIdExists(int queryId) {
@@ -73,7 +72,7 @@ public class MyConnectionSingleThread {
         }
     }
 
-    public void receive() {
+    public void receive() throws InterruptedException {
          try {
             MyData myData = this.currentMyDriver.receive();
             if (this.subscriberMap.containsKey(myData.queryId)) {
@@ -84,7 +83,29 @@ public class MyConnectionSingleThread {
                 }
             }
         } catch (MyDriverException e) {
-            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
+            open();
         }
+    }
+
+    public synchronized boolean isStart() {
+        if(!start)
+        {
+            markStart();
+            return false;
+        }
+        return start;
+    }
+
+    private void markStart() {
+        this.start = true;
+    }
+
+    public void removeSubscriber(Integer queryId) throws MyDriverException {
+        this.subscriberMap.remove(queryId);
+        currentMyDriver.removeQuery(queryId);
+    }
+
+    public void removeListener(MyConnectionEventListener listener) {
+        this.listeners.remove(listener);
     }
 }

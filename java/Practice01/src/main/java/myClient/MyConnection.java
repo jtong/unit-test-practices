@@ -1,18 +1,13 @@
 package myClient;
 
-import com.sun.org.apache.xalan.internal.xsltc.compiler.Closure;
-import myDriver.MyDriverException;
-
 import java.io.Closeable;
-import java.util.ArrayList;
-import java.util.EventObject;
-import java.util.List;
+import java.util.*;
 
 public class MyConnection {
 
     public final static int RECONNECT_INTERVAL = 3000;
     private MyConnectionSingleThread myConnectionSingleThread;
-    private List<MyConnectionEventListener> eventListener;
+    private Set<MyConnectionEventListener> eventListener;
 
     public MyConnection(String[] uris) {
         this(new MyConnectionSingleThread(uris, new MyDriverRepository(), new MyThreadUtil()));
@@ -20,7 +15,7 @@ public class MyConnection {
 
     public MyConnection(MyConnectionSingleThread myConnectionSingleThread) {
         this.myConnectionSingleThread = myConnectionSingleThread;
-        this.eventListener = new ArrayList<MyConnectionEventListener>();
+        this.eventListener = new LinkedHashSet<MyConnectionEventListener>();
     }
 
     public void open() {
@@ -37,7 +32,7 @@ public class MyConnection {
                 dispatchConnectedEvent(eventListener);
             }
 
-            private void dispatchConnectedEvent(List<MyConnectionEventListener> eventListener) {
+            private void dispatchConnectedEvent(Set<MyConnectionEventListener> eventListener) {
                 for (MyConnectionEventListener myConnectionEventListener : eventListener) {
                     myConnectionEventListener.connected(new EventObject(MyConnection.this));
                 }
@@ -54,7 +49,22 @@ public class MyConnection {
 
     public Closeable subscribe(int queryId, MySubscriber subscriber) {
         Closeable closeable = this.myConnectionSingleThread.register(queryId, subscriber);
-        this.myConnectionSingleThread.receive();
+        if(!this.myConnectionSingleThread.isStart())
+        {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    while (true){
+                        try {
+                            myConnectionSingleThread.receive();
+                        } catch (InterruptedException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                }
+            }).start();
+
+        }
         return closeable;
     }
 
@@ -64,6 +74,7 @@ public class MyConnection {
     }
 
     public synchronized void removeConnectionListener(MyConnectionEventListener listener) {
-        throw new RuntimeException("Not implemented");
+        this.eventListener.remove(listener);
+        this.myConnectionSingleThread.removeListener(listener);
     }
 }

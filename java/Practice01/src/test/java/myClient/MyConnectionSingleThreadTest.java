@@ -1,6 +1,7 @@
 package myClient;
 
 import myDriver.MyData;
+import myDriver.MyDriver;
 import myDriver.MyDriverException;
 import org.junit.Before;
 import org.junit.Test;
@@ -11,8 +12,11 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.runners.MockitoJUnitRunner;
 
+import java.io.Closeable;
 import java.util.EventObject;
 
+import static org.hamcrest.core.Is.is;
+import static org.junit.Assert.assertThat;
 import static org.junit.Assert.fail;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.*;
@@ -26,10 +30,13 @@ public class MyConnectionSingleThreadTest {
     private MyThreadUtil myThreadUtil;
     @Mock
     private MyDriverWrapper myDriver;
+    @Mock
+    private MySubscriber mySubscriber;
+
+    private MyConnectionSingleThread myConnectionSingleThread;
 
     private String[] uris;
     private int queryId = 0;
-    private MyConnectionSingleThread myConnectionSingleThread;
 
     @Before
     public void before() {
@@ -112,7 +119,7 @@ public class MyConnectionSingleThreadTest {
     }
 
     @Test
-    public void should_not_connect_the_first_one_when_last_one_failed() throws MyDriverException, InterruptedException {
+    public void should_connect_the_first_one_when_last_one_failed() throws MyDriverException, InterruptedException {
         //given
         uris = new String[]{
                 "uri://connect.should.failed.at.first:1",
@@ -238,7 +245,6 @@ public class MyConnectionSingleThreadTest {
     @Test
     public void should_call_subscriber_on_begin_method_when_given_data_is_query_id_value_begin() throws MyDriverException, InterruptedException {
         givenSimpleMyConnectionSingleThread();
-        MySubscriber mySubscriber = mock(MySubscriber.class);
         given(myDriver.receive()).willReturn(new MyData(queryId, "begin"));
 
         myConnectionSingleThread.open();
@@ -254,7 +260,6 @@ public class MyConnectionSingleThreadTest {
     public void should_call_subscriber_on_message_method_when_given_data_is_not_query_id_value_begin() throws MyDriverException, InterruptedException {
         givenSimpleMyConnectionSingleThread();
 
-        MySubscriber mySubscriber = mock(MySubscriber.class);
         MyData myData = new MyData(queryId, "123456");
         given(myDriver.receive()).willReturn(myData);
 
@@ -273,5 +278,55 @@ public class MyConnectionSingleThreadTest {
         myConnectionSingleThread = new MyConnectionSingleThread(uris, myDriverRepository, myThreadUtil);
     }
 
+    @Test
+    public void should_change_started_status_after_call_isStart_method(){
+        givenSimpleMyConnectionSingleThread();
 
+        assertThat(myConnectionSingleThread.isStart(), is(false));
+        assertThat(myConnectionSingleThread.isStart(), is(true));
+
+    }
+
+    @Test
+    public void should_get_closeable_object_after_register() throws InterruptedException {
+        givenSimpleMyConnectionSingleThread();
+        Closeable expectCloser = new SubscribeCloser(queryId, myConnectionSingleThread);
+        myConnectionSingleThread.open();
+        Closeable actualCloser = myConnectionSingleThread.register(queryId, mySubscriber);
+    
+        assertThat(actualCloser, is(expectCloser));
+    }
+    
+    @Test
+    public void should_remove_query_on_removing_subscriber() throws MyDriverException, InterruptedException {
+        givenSimpleMyConnectionSingleThread();
+        myConnectionSingleThread.open();
+        myConnectionSingleThread.removeSubscriber(queryId);
+
+        verify(myDriver).removeQuery(queryId);
+    }
+    
+    @Test
+    public void should_reconnect_when_my_driver_receive_failed_on_my_connection_single_thread_receiving() throws InterruptedException, MyDriverException {
+        uris = new String[]{
+                "uri://connect:1",
+                "uri://connect:2"
+        };
+        MyDriverWrapper myDriver1 = mock(MyDriverWrapper.class);
+        MyDriverWrapper myDriver2 = mock(MyDriverWrapper.class);
+
+        given(myDriverRepository.getMyDriver(uris[0])).willReturn(myDriver1);
+        given(myDriverRepository.getMyDriver(uris[1])).willReturn(myDriver2);
+        myConnectionSingleThread = new MyConnectionSingleThread(uris, myDriverRepository, myThreadUtil);
+        myConnectionSingleThread.open();
+
+        doThrow(new MyDriverException("connect failed at second time")).when(myDriver1).connect();
+
+        given(myDriver1.receive()).willThrow(new MyDriverException("receive failed"));
+
+        myConnectionSingleThread.receive();
+
+        verify(myDriver1, times(2)).connect();
+        verify(myDriver2).connect();
+    }
 }
